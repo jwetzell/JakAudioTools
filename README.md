@@ -14,4 +14,8 @@ Tools for parsing and dealing with the various audio files found in Jak and Daxt
   * Jak 3 and beyond? - this file is obfuscated so isn't of use yet....
 * **XXXXXX.SBK** - SBK files are like soundfonts, they contain short game sound effects as well as the sound name for each of these i.e zoomer-jump
 * **XXXXXX.MUS** - MUS files contain sequence data (like MIDI) as well as sound bank information, this is the main format of game background music in Jak 1 & 2
+  * A very good start for how the data is packed in these can be found [here](https://forum.xentax.com/viewtopic.php?t=12966) but seems like the poster's bitbucket is no longer available :(
+  * One big thing I found that wasn't outline was the MID blocks that contain the actual sequence data is actually formatted like [MTrk's](http://www.music.mcgill.ca/~ich/classes/mumt306/StandardMIDIfileformat.html#BM2_3) and the midi library I originally was using mido just ignored the delay events
+  * Currently program change events and sysex messages aren't output to the midi file but can easily be added by modifying the `eventsToOutput` array at the beginning of the MIDI conversion
+  * I also haven't done anything with the soundbank data (although the program does parse out the data for these sections) it's fairly easy to get these sounds out separately using something like [PSound](http://snailrush.online.fr/)
  
