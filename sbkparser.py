@@ -2,6 +2,8 @@
 import os
 import argparse
 import struct
+from collections import namedtuple
+
 def is_valid_file(parser, arg):
     if not os.path.exists(arg):
         parser.error("The file %s does not exist!" % arg)
@@ -23,127 +25,114 @@ name_length = 20
 sounds_start = 24
 sounds_length = 20
 
-with open(args.filepath, "rb") as f:
-    sbkInfo = struct.unpack("20sI",f.read(24))
-    print(sbkInfo)
-    soundDatas = []
-    for i in range(sbkInfo[1]):
-        soundData = struct.unpack("16sHH",f.read(20))
-        print(soundData)
-    f.seek(2048)
+#struct type            20s  I
+SBK = namedtuple('SBK','name soundCount')
+SBKStructString = "20sI"
 
-    '''
-        seq
-        I version
-        I subversion
-        I minorversion
-        I something?
-        I soundbankStart
-        I soundBankSize
-    '''
+#struct type                16s  I               I
+Sound = namedtuple('Sound','name soundDataOffset soundDataSize')
+SoundStructString = "16sHH"
+
+#struct type            I       I          I            I         I               I
+SEQ = namedtuple('SEQ','version subversion minorversion something soundBankOffset soundBankSize')
+SEQStructString = "6I"
+
+#struct type               4s       I       I          I            I    H H H H                I                I            I I I
+SB1K = namedtuple('SB1K','signature version subversion minorversion zero e f g h instrumentOffset regionOffset k l m')
+SB1kStructString = "4sIIIIHHHHIIIII"
+
+#struct type                          I      h h h            h
+Instrument = namedtuple('Instrument','volume a b regionOffset d')
+InstrumentStructString = 'IHHHH'
+
+Region = namedtuple('Region','version subversion a volume b c d e1 e2 f1 f2 g1 sampleId zeros1 zeros2 zero3')
+RegionStructString = 'IIBBBBIHHHHHHIII'
+
+with open(args.filepath, "rb") as f:
+    sbkInstance = SBK._make(struct.unpack(SBKStructString,f.read(24)))
+    print(sbkInstance)
+    soundDatas = []
+
+    for i in range(sbkInstance.soundCount):
+        soundData = Sound._make(struct.unpack(SoundStructString,f.read(20)))
+        print(soundData)
+    
+    # a ton of zeros
+    while(struct.unpack("B",f.read(1))[0] == 0):
+        continue
+    # found something rewind a byte
+    f.seek(-1,1)
 
     seqStart = f.tell()
-    seq = struct.unpack("6I",f.read(24))
-    print(seq)
+    seqInstance = SEQ._make(struct.unpack(SEQStructString,f.read(24)))
+    print(seqInstance)
 
-    soundbankStart = seq[4] + seqStart
+    soundbankStart = seqInstance.soundBankOffset + seqStart
     print(f"SoundBank Offset: {soundbankStart}")
 
-    '''
-        sb1k
-
-        4s signature 'SB1k'
-        I
-        I
-        4s
-        I
-        H
-        H
-        H
-        H
-        I instrumentOffset from beingging of this struct
-        I regionOffset from beginning of this struct
-        I
-        I
-        I
-        I
-        I
-        12s
-        H
-        H
-        H
-        H
-        I
-    '''
-    
-
     soundBankHeaderStart = f.tell()
-    sb1k = struct.unpack("4sII4sIHHHHIIIIIII12sHHHHI",f.read(80))
+    SB1KInstance = SB1K._make(struct.unpack(SB1kStructString,f.read(48)))
+    print(SB1KInstance)
 
-    instrumentStart = sb1k[8] + soundBankHeaderStart
-    print(instrumentStart)
+    # there is some data here
+    instrumentStart = SB1KInstance[8] + soundBankHeaderStart
+    regionStart = SB1KInstance[10] + soundBankHeaderStart
+
     f.seek(instrumentStart)
-    regionStart = sb1k[10] + soundBankHeaderStart
-    print(sb1k)
 
     instruments = []
     while(f.tell() < regionStart):
-        '''
-            struct Instrument {
-                uint8_t nRegion; // usually 1
-                uint8_t volume; // ? maybe... like 7f is 1.0?
-                uint16_t something; // always 0
-                uint32_t oRegion; // relative to start of SBv2 block I think, points to the first region for instrument
-            } __attribute__((packed));
-        '''
-        instrument = struct.unpack("BBBBHI",f.read(12))
-        instruments.append(instrument)
+        
+        instrumentInstance = Instrument._make(struct.unpack(InstrumentStructString,f.read(12)))
+        instruments.append(instrumentInstance)
 
     print("INSTRUMENTS")
     offsets = []
-    for instrument in instruments:
-        if instrument[-1] not in offsets:
-            offsets.append(instrument[-1])
-        print(instrument)
-    print(len(offsets))
-
+    for inst in instruments:
+        if inst.regionOffset not in offsets:
+            offsets.append(inst.regionOffset)
+        print(inst)
+    print(len(instruments))
     f.seek(regionStart)
 
     regions = []
     while(f.tell()<soundbankStart):
         #format defintely not right but 
-        region = struct.unpack("10I", f.read(40))
-        regions.append(region)
+        regionInstance = Region._make(struct.unpack(RegionStructString, f.read(40)))
+        regions.append(regionInstance)
     print("REGIONS")
     sampleOffsets = []
-    for region in regions:
-        print(region)
-        sampleOffset = soundbankStart + region[-4]
+    for reg in regions:
+        print(reg)
+        sampleOffset = soundbankStart + reg[-4]
         if sampleOffset not in sampleOffsets:
             sampleOffsets.append(sampleOffset)
+        
         #print(f"Region Sample Audio  offset: {soundbankStart + region[10]}")
     # this should align the index of the sample offset with it's sample ID
-    sampleOffsets.sort()
+    # sampleOffsets.sort()
 
-    count = 0
-    for offset in sampleOffsets:
-        f.seek(offset)
-        soundData = f.read(1)
-        while(f.tell() not in sampleOffsets):
-            character = f.read(1)
-            if not character:
-                break
-            soundData += character
-
-        #VAGp header data length and sample rate are packed in bytes 11-15 and 16-20 respectively
-        header = b'\x56\x41\x47\x70\x00\x00\x00\x20\x00\x00\x00\x00'
-        header += struct.pack(">II", len(soundData), 22050)
-        header += b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x61\x73\x73\x69\x73\x74\x61\x6E\x74\x2D\x76\x69\x6C\x6C\x61\x67\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    # count = 0
+    # previousOffset = 0
+    # for offset in sampleOffsets:
+    #     previousOffset = offset
+    #     f.seek(offset)
+    #     soundData = f.read(1)
+    #     count += 1
+    #     while(f.tell() not in sampleOffsets):
+    #         character = f.read(1)
+    #         if not character:
+    #             break
+    #         soundData += character
+    #     #VAGp header data length and sample rate are packed in bytes 11-15 and 16-20 respectively
+    #     header = b'\x56\x41\x47\x70\x00\x00\x00\x20\x00\x00\x00\x00'
+    #     header += struct.pack(">II", len(soundData), 22050)
+    #     header += b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x61\x73\x73\x69\x73\x74\x61\x6E\x74\x2D\x76\x69\x6C\x6C\x61\x67\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
         
-        with open(f'./OUT/VAGp/{count}.VAGp','wb') as out:
-            out.write(header)
-            out.write(soundData)
-            out.close()
-        count += 1
+    #     with open(f'./OUT/VAGp/{count}.VAGp','wb') as out:
+    #         out.write(header)
+    #         out.write(soundData)
+    #         out.close()
+    #     count += 1
         
 

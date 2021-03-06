@@ -3,3 +3,5 @@ JAK2/
 JAK3/
 OUT/
 *.mid
+*.bin
+*.bak
