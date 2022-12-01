@@ -55,6 +55,7 @@ with open(args.filepath, "rb") as f:
 
     for i in range(sbkInstance.soundCount):
         soundData = Sound._make(struct.unpack(SoundStructString,f.read(20)))
+        soundDatas.append(soundData)
         print(soundData)
     
     # a ton of zeros
@@ -92,7 +93,6 @@ with open(args.filepath, "rb") as f:
         if inst.regionOffset not in offsets:
             offsets.append(inst.regionOffset)
         print(inst)
-    print(len(instruments))
     f.seek(regionStart)
 
     regions = []
@@ -107,32 +107,3 @@ with open(args.filepath, "rb") as f:
         sampleOffset = soundbankStart + reg[-4]
         if sampleOffset not in sampleOffsets:
             sampleOffsets.append(sampleOffset)
-        
-        #print(f"Region Sample Audio  offset: {soundbankStart + region[10]}")
-    # this should align the index of the sample offset with it's sample ID
-    # sampleOffsets.sort()
-
-    # count = 0
-    # previousOffset = 0
-    # for offset in sampleOffsets:
-    #     previousOffset = offset
-    #     f.seek(offset)
-    #     soundData = f.read(1)
-    #     count += 1
-    #     while(f.tell() not in sampleOffsets):
-    #         character = f.read(1)
-    #         if not character:
-    #             break
-    #         soundData += character
-    #     #VAGp header data length and sample rate are packed in bytes 11-15 and 16-20 respectively
-    #     header = b'\x56\x41\x47\x70\x00\x00\x00\x20\x00\x00\x00\x00'
-    #     header += struct.pack(">II", len(soundData), 22050)
-    #     header += b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x61\x73\x73\x69\x73\x74\x61\x6E\x74\x2D\x76\x69\x6C\x6C\x61\x67\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-        
-    #     with open(f'./OUT/VAGp/{count}.VAGp','wb') as out:
-    #         out.write(header)
-    #         out.write(soundData)
-    #         out.close()
-    #     count += 1
-        
-
