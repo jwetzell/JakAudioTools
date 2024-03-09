@@ -64,11 +64,11 @@ def is_valid_file(parser, arg):
     else:
         return arg
 
-parser = argparse.ArgumentParser(description="Process JAK SBK files")
+parser = argparse.ArgumentParser(description="Process JAK MUS files")
 
 
 parser.add_argument("-i", dest="filepath", required=True, 
-                    help="Input path to JAK SBK file", metavar="FILE",
+                    help="Input path to JAK MUS file", metavar="FILE",
                     type=lambda x: is_valid_file(parser, x))
 
 args = parser.parse_args()
