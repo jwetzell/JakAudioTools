@@ -1,0 +1,46 @@
+name: "release go binaries for vagparser"
+
+on:
+  push:
+    tags:
+      - 'vagparser/*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+
+  create-release:
+    name: Create vagparser release
+    runs-on: ubuntu-latest 
+    steps:
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: ${{ github.ref }}
+          draft: false
+  release-multi:
+    name: create binaries and upload
+    needs: create-release
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: wangyoucao577/go-release-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          goos: ${{ matrix.goos }}
+          goarch: ${{ matrix.goarch }}
+          goversion: "1.26.2"
+          project_path: "./cmd/vagparser"
+          binary_name: "vagparser"
+          asset_name: vagparser-${{ matrix.goos }}-${{ matrix.goarch }}
+          release_name: ${{github.ref_name}}
